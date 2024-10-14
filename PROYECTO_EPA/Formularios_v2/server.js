@@ -428,6 +428,71 @@ function eliminarCuenta(userId) {
 }
 
 
+// Ruta para manejar la solicitud de restablecimiento de contraseña
+app.post('/solicitar-reset', (req, res) => {
+    const { email } = req.body;
+
+    // Busca al usuario en la base de datos por su correo
+    const sql = `
+        SELECT 'Cliente' AS rol, id_cliente AS id FROM Cliente WHERE correo_cli = ?
+        UNION 
+        SELECT 'Mesero' AS rol, id_mesero AS id FROM Mesero WHERE correo_msr = ?
+        UNION 
+        SELECT 'Domiciliario' AS rol, id_domiciliario AS id FROM Domiciliario WHERE correo_domi = ?
+        UNION 
+        SELECT 'Administrador' AS rol, id_admin AS id FROM Administrador WHERE correo_admin = ?
+    `;
+
+    connection.query(sql, [email, email, email, email], (err, results) => {
+        if (err) {
+            console.error('Error en la búsqueda del usuario:', err);
+            return res.status(500).send('Error en la búsqueda del usuario');
+        }
+
+        if (results.length === 0) {
+            return res.status(404).send('No se encontró un usuario con ese correo');
+        }
+
+        // Generar una nueva contraseña y actualizar en la base de datos
+        const nuevaContraseña = generarNuevaContraseña(); // Debes implementar esta función
+
+        let updateSql;
+        const userId = results[0].id;
+
+        switch (results[0].rol) {
+            case 'Cliente':
+                updateSql = 'UPDATE Cliente SET contraseña_cli = ? WHERE id_cliente = ?';
+                break;
+            case 'Mesero':
+                updateSql = 'UPDATE Mesero SET contraseña_msr = ? WHERE id_mesero = ?';
+                break;
+            case 'Domiciliario':
+                updateSql = 'UPDATE Domiciliario SET contraseña_domi = ? WHERE id_domiciliario = ?';
+                break;
+            case 'Administrador':
+                updateSql = 'UPDATE Administrador SET contraseña_admin = ? WHERE id_admin = ?';
+                break;
+            default:
+                return res.status(400).send('Rol no válido');
+        }
+
+        connection.query(updateSql, [nuevaContraseña, userId], (err) => {
+            if (err) {
+                console.error('Error al actualizar la contraseña:', err);
+                return res.status(500).send('Error al actualizar la contraseña');
+            }
+
+            console.log('Contraseña restablecida con éxito para el usuario:', userId);
+            res.status(200).send('Contraseña restablecida y enviada al correo');
+        });
+    });
+});
+
+// Función para generar una nueva contraseña (puedes personalizar esto)
+function generarNuevaContraseña() {
+    return Math.random().toString(36).slice(-8); // Genera una contraseña aleatoria de 8 caracteres
+}
+
 
 app.listen(port, () => {
     console.log(`Servidor corriendo en http://localhost:${port}`);
